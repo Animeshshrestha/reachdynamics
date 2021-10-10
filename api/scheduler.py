@@ -8,6 +8,8 @@ spreadsheet_instance.write_client_summary_to_googlesheet()
 #to insert data on client data sheet
 spreadsheet_instance.write_client_data_to_googlesheet()
 
+#to insert data on datewise page visit sheets
+spreadsheet_instance.write_datewise_page_visit()
 
 # from apscheduler.schedulers.blocking import BlockingScheduler
 

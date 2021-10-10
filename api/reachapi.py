@@ -1,7 +1,9 @@
 import itertools
+from datetime import datetime, time, timedelta
 from multiprocessing import Process, Queue
 
 import pandas as pd
+import pytz
 import requests
 
 
@@ -15,12 +17,48 @@ class ApiReachDynamicsMixin:
                             }
         self.url = 'http://api.reachdynamics.com/api/v1.0/'
     
+    @staticmethod
+    def get_honolulu_date():
+        date = pytz.timezone('Pacific/Honolulu')
+        honolulu_date = datetime.now(date)
+
+        previous_day_date = honolulu_date-timedelta(days=1)
+        return previous_day_date.date().strftime("%Y-%m-%d")+"T00:00:00"
+
+
+    
     @property
     def get_client_details(self):
 
         api_url = self.url+'agency/clients'
         response = requests.request(url=api_url, method='GET', headers=self.cred_headers)
         return response.json()
+    
+    def get_page_visit_by_date(self):
+
+        final_data = []
+        api_url = self.url+'attribution/senddetails'
+        for client in self.get_client_details:
+            params = {'accountId':client.get('accountId')}
+            response = requests.request(url=api_url, method='GET', headers=self.cred_headers, 
+                                        params=params)
+            for data in response.json():
+                final_data.append({
+                    'accountId':data.get('accountId'),
+                    'clientName':client.get('clientName'),
+                    'email':data.get('audienceMemberAttributes').get('Email'),
+                    'pagevisits':data.get('audienceMemberAttributes').get('PageVisits')
+                })
+        new_data = pd.json_normalize(
+                final_data,
+                record_path=['pagevisits'],
+                meta=["accountId","clientName","email"]
+                )
+        new_data['PageViewDateTime'] =  pd.to_datetime(new_data['PageViewDateTime']).dt.strftime('%Y-%m-%d')
+        del new_data['IP']
+        del new_data['PixelUrl']
+        return new_data
+        
 
     def get_account_details(self):
 
@@ -113,6 +151,7 @@ class ApiReachDynamicsMixin:
         response_data = response.json()
         for data in response_data:
             data['Date'] = data.pop('statDate')
+            data['dispclick'] = data.pop('clicks')
         self.queue.put(response_data)
     
     @staticmethod
@@ -152,7 +191,13 @@ class ApiReachDynamicsMixin:
         final_data = list(itertools.chain(*response))
         df = pd.DataFrame(final_data)
         df.fillna(0, inplace=True)
-        aggregation_functions = {'Date':'first','companyName':lambda x: self.fix_my_stuff(x),'accountId': 'first','quantitySent': 'sum','cost': 'sum','delivered': 'sum','impressions': 'sum','opens': 'sum','clicks': 'sum','bounced': 'sum','unsubs': 'sum'}
+        aggregation_functions = {'Date':'first','companyName':lambda x: self.fix_my_stuff(x),
+                                'accountId': 'first','quantitySent': 'sum',
+                                'cost': 'sum','delivered': 'sum',
+                                'impressions': 'sum','opens': 'sum',
+                                'clicks': 'sum','bounced': 'sum',
+                                'unsubs': 'sum','ctr':'sum','attempted':'sum',
+                                'openRate':'sum','dispclick':'sum'}
         df_new = df.groupby(['Date'], as_index=False).aggregate(aggregation_functions)
         df_new['Date'] = pd.to_datetime(df_new['Date'])
         df_new['Total Leads'] = df_new['quantitySent']
@@ -161,7 +206,13 @@ class ApiReachDynamicsMixin:
             'quantitySent':'Direct Mail Sent',
             'cost':'Direct Mail Cost',
             'delivered':'Emails delivered',
-            'impressions':'Social impressions'
+            'impressions':'Social impressions',
+            'opens':'Email Opened',
+            'clicks':'Email Clicked',
+            'ctr':'Email Ctr',
+            'attempted':'Email Attempted',
+            'openRate':'Email Open Rate',
+            'dispclick':'Display Clicks'
         }, inplace = True)
         return df_new
 

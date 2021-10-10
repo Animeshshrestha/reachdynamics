@@ -58,7 +58,13 @@ class GoogleWorkSheetMixin:
 
         sheet_details = self.open_sheet.worksheet('All Clients Account name')
         sheet_details.update([final_data.columns.values.tolist()] + final_data.values.tolist())
+    
+    def write_datewise_page_visit(self):
+        
+        data = api.get_page_visit_by_date()
 
+        sheet_details = self.open_sheet.worksheet('Datewise page visits')
+        sheet_details.update([data.columns.values.tolist()] + data.values.tolist())
 
 
 
