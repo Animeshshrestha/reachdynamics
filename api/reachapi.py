@@ -77,7 +77,8 @@ class ApiReachDynamicsMixin:
                     'email':data.get('audienceMemberAttributes').get('Email'),
                     'total_visits':len(data.get('audienceMemberAttributes').get('PageVisits')),
                     'clientName':client.get('clientName'),
-                    'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn')
+                    'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn'),
+                    'phoneNumer':data.get('audienceMemberAttributes').get('PhoneNumber', None)
                 })
         new_data = pd.DataFrame(final_data)
         new_data['initialDate'] =  pd.to_datetime(new_data['initialDate']).dt.strftime('%Y-%m-%d')
