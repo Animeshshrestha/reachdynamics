@@ -79,7 +79,10 @@ class ApiReachDynamicsMixin:
                     'clientName':client.get('clientName'),
                     'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn')
                 })
-        return pd.DataFrame(final_data)
+        new_data = pd.DataFrame(final_data)
+        new_data['initialDate'] =  pd.to_datetime(new_data['initialDate']).dt.strftime('%Y-%m-%d')
+        return new_data
+        
     
     @property
     def get_email_sent(self):
