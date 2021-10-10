@@ -47,12 +47,14 @@ class ApiReachDynamicsMixin:
                     'accountId':data.get('accountId'),
                     'clientName':client.get('clientName'),
                     'email':data.get('audienceMemberAttributes').get('Email'),
+                    'fname':data.get('firstName',None),
+                    'lname':data.get('lastName',None),
                     'pagevisits':data.get('audienceMemberAttributes').get('PageVisits')
                 })
         new_data = pd.json_normalize(
                 final_data,
                 record_path=['pagevisits'],
-                meta=["accountId","clientName","email"]
+                meta=["accountId","clientName","email","fname","lname"]
                 )
         new_data['PageViewDateTime'] =  pd.to_datetime(new_data['PageViewDateTime']).dt.strftime('%Y-%m-%d')
         del new_data['IP']
@@ -74,7 +76,8 @@ class ApiReachDynamicsMixin:
                     'lname':data.get('lastName',None),
                     'email':data.get('audienceMemberAttributes').get('Email'),
                     'total_visits':len(data.get('audienceMemberAttributes').get('PageVisits')),
-                    'clientName':client.get('clientName')
+                    'clientName':client.get('clientName'),
+                    'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn')
                 })
         return pd.DataFrame(final_data)
     
