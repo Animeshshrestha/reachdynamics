@@ -16,6 +16,7 @@ class ApiReachDynamicsMixin:
                 'api_key':'OkvrEZcAsXTr/PrCUkQ6o5ZUk1xT5ayGdWpkW+gI61ktLbpDWVo0vB0aZonkOneVV6M='
                             }
         self.url = 'http://api.reachdynamics.com/api/v1.0/'
+        self.company_details = self.get_client_details
     
     @staticmethod
     def get_honolulu_date():
@@ -112,6 +113,29 @@ class ApiReachDynamicsMixin:
         self.queue.put(response_data)
 
     @property
+    def get_total_leads(self):
+
+        api_url = self.url+'reports/dataSummary'
+        params = {
+            "Columns":["CompanyName","AccountId","QueuedOnDate"]
+        }
+        payload = [
+            {
+                "ColumnName": "StartDate"
+            },
+            {
+                "ColumnName":"EndDate"
+            }
+        ]
+        response = requests.request(url=api_url, method='POST', headers=self.cred_headers,
+                                    params=params, json=payload)
+        response_data = response.json()
+        for data in response_data:
+            data['Date'] = data.pop('queuedOnDate')
+        self.queue.put(response_data)
+
+
+    @property
     def get_direct_mail_sent(self):
 
         api_url = self.url+'reports/directmailsummary'
@@ -183,15 +207,9 @@ class ApiReachDynamicsMixin:
 
         data = self.runInParallel(self.get_email_sent, 
                                   self.get_direct_mail_sent, 
-                                  self.get_social_summary)
+                                  self.get_social_summary,
+                                  self.get_total_leads)
         return data
-    
-    @staticmethod
-    def fix_my_stuff(x):
-        data = list(set(x.tolist()))
-        for d in data:
-            if isinstance(d, str):
-                return d
 
     @property
     def get_final_summary_data(self):
@@ -199,17 +217,31 @@ class ApiReachDynamicsMixin:
         final_data = list(itertools.chain(*response))
         df = pd.DataFrame(final_data)
         df.fillna(0, inplace=True)
-        aggregation_functions = {'Date':'first','companyName':lambda x: self.fix_my_stuff(x),
-                                'accountId': 'first','quantitySent': 'sum',
+        aggregation_functions = {'Date':'first',
+                                'quantitySent': 'sum',
                                 'cost': 'sum','delivered': 'sum',
                                 'impressions': 'sum','opens': 'sum',
                                 'clicks': 'sum','bounced': 'sum',
                                 'unsubs': 'sum','ctr':'sum','attempted':'sum',
-                                'openRate':'sum','dispclick':'sum'}
-        df_new = df.groupby(['Date'], as_index=False).aggregate(aggregation_functions)
+                                'openRate':'sum','dispclick':'sum','quantityDelivered':'sum'}
+
+        df_new = df.groupby(['Date','accountId'], as_index=False).aggregate(aggregation_functions)
+        account_id_values = df_new['accountId'].items()
+        account_id_list = []
+        for _, acc_id in account_id_values:
+            account_id_list.append(acc_id)
+
+        company_details = self.company_details
+        companyName = []
+        for aId in account_id_list:
+            data = next(
+            (d for d in company_details \
+                if d.get('accountId') == aId), None)
+            companyName.append(data.get('clientName'))
+        df_new['companyName'] = companyName       
         df_new['Date'] = pd.to_datetime(df_new['Date'])
-        df_new['Total Leads'] = df_new['quantitySent']
         df_new['Date']  = df_new['Date'].dt.strftime('%Y-%m-%d').replace("'", "")
+
         df_new.rename(columns={
             'quantitySent':'Direct Mail Sent',
             'cost':'Direct Mail Cost',
@@ -220,7 +252,8 @@ class ApiReachDynamicsMixin:
             'ctr':'Email Ctr',
             'attempted':'Email Attempted',
             'openRate':'Email Open Rate',
-            'dispclick':'Display Clicks'
+            'dispclick':'Display Clicks',
+            'quantityDelivered':'Total Leads'
         }, inplace = True)
         return df_new
 
