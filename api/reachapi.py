@@ -238,7 +238,7 @@ class ApiReachDynamicsMixin:
             (d for d in company_details \
                 if d.get('accountId') == aId), None)
             companyName.append(data.get('clientName'))
-        df_new['companyName'] = companyName       
+        df_new['Company Name'] = companyName       
         df_new['Date'] = pd.to_datetime(df_new['Date'])
         df_new['Date']  = df_new['Date'].dt.strftime('%Y-%m-%d').replace("'", "")
 
@@ -255,7 +255,9 @@ class ApiReachDynamicsMixin:
             'dispclick':'Display Clicks',
             'quantityDelivered':'Total Leads'
         }, inplace = True)
-        return df_new
+        columns = df_new.columns.values.tolist()
+        columns.insert(0, columns.pop(-1))
+        return df_new[columns]
 
 
 api = ApiReachDynamicsMixin()
