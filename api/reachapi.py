@@ -1,9 +1,7 @@
 import itertools
-from datetime import datetime, time, timedelta
 from multiprocessing import Process, Queue
 
 import pandas as pd
-import pytz
 import requests
 
 
@@ -16,17 +14,6 @@ class ApiReachDynamicsMixin:
                 'api_key':'OkvrEZcAsXTr/PrCUkQ6o5ZUk1xT5ayGdWpkW+gI61ktLbpDWVo0vB0aZonkOneVV6M='
                             }
         self.url = 'http://api.reachdynamics.com/api/v1.0/'
-        self.company_details = self.get_client_details
-    
-    @staticmethod
-    def get_honolulu_date():
-        date = pytz.timezone('Pacific/Honolulu')
-        honolulu_date = datetime.now(date)
-
-        previous_day_date = honolulu_date-timedelta(days=1)
-        return previous_day_date.date().strftime("%Y-%m-%d")+"T00:00:00"
-
-
     
     @property
     def get_client_details(self):
@@ -34,35 +21,6 @@ class ApiReachDynamicsMixin:
         api_url = self.url+'agency/clients'
         response = requests.request(url=api_url, method='GET', headers=self.cred_headers)
         return response.json()
-    
-    def get_page_visit_by_date(self):
-
-        final_data = []
-        api_url = self.url+'attribution/senddetails'
-        for client in self.get_client_details:
-            params = {'accountId':client.get('accountId')}
-            response = requests.request(url=api_url, method='GET', headers=self.cred_headers, 
-                                        params=params)
-            for data in response.json():
-                final_data.append({
-                    'accountId':data.get('accountId'),
-                    'clientName':client.get('clientName'),
-                    'email':data.get('audienceMemberAttributes').get('Email'),
-                    'fname':data.get('firstName',None),
-                    'lname':data.get('lastName',None),
-                    'pagevisits':data.get('audienceMemberAttributes').get('PageVisits'),
-                    'phoneNumber':data.get('audienceMemberAttributes').get('PhoneNumber', None)
-                })
-        new_data = pd.json_normalize(
-                final_data,
-                record_path=['pagevisits'],
-                meta=["accountId","clientName","email","fname","lname","phoneNumber"]
-                )
-        new_data['PageViewDateTime'] =  pd.to_datetime(new_data['PageViewDateTime']).dt.strftime('%Y-%m-%d')
-        del new_data['IP']
-        del new_data['PixelUrl']
-        return new_data
-        
 
     def get_account_details(self):
 
@@ -78,14 +36,9 @@ class ApiReachDynamicsMixin:
                     'lname':data.get('lastName',None),
                     'email':data.get('audienceMemberAttributes').get('Email'),
                     'total_visits':len(data.get('audienceMemberAttributes').get('PageVisits')),
-                    'clientName':client.get('clientName'),
-                    'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn'),
-                    'phoneNumber':data.get('audienceMemberAttributes').get('PhoneNumber', None)
+                    'clientName':client.get('clientName')
                 })
-        new_data = pd.DataFrame(final_data)
-        new_data['initialDate'] =  pd.to_datetime(new_data['initialDate']).dt.strftime('%Y-%m-%d')
-        return new_data
-        
+        return pd.DataFrame(final_data)
     
     @property
     def get_email_sent(self):
@@ -104,36 +57,16 @@ class ApiReachDynamicsMixin:
                 # "FilterValue":"2021-10-03T00:00:00"
             }
         ]
-            
-        response = requests.request(url=api_url, method='POST', headers=self.cred_headers, 
-                                   params=params, json=payload)
-        response_data = response.json()
+        status_code = 400
+        while status_code != 200:   
+            response = requests.request(url=api_url, method='POST', headers=self.cred_headers, 
+                                    params=params, json=payload)
+            print("1",response.status_code)
+            response_data = response.json()
+            status_code = response.status_code
         for data in response_data:
             data['Date'] = data.pop('actionDate')
         self.queue.put(response_data)
-
-    @property
-    def get_total_leads(self):
-
-        api_url = self.url+'reports/dataSummary'
-        params = {
-            "Columns":["CompanyName","AccountId","QueuedOnDate"]
-        }
-        payload = [
-            {
-                "ColumnName": "StartDate"
-            },
-            {
-                "ColumnName":"EndDate"
-            }
-        ]
-        response = requests.request(url=api_url, method='POST', headers=self.cred_headers,
-                                    params=params, json=payload)
-        response_data = response.json()
-        for data in response_data:
-            data['Date'] = data.pop('queuedOnDate')
-        self.queue.put(response_data)
-
 
     @property
     def get_direct_mail_sent(self):
@@ -152,10 +85,13 @@ class ApiReachDynamicsMixin:
                 # "FilterValue":"2021-10-03T00:00:00"
             }
         ]
-            
-        response = requests.request(url=api_url, method='POST', headers=self.cred_headers,
-                                    params=params, json=payload)
-        response_data = response.json()
+        status_code = 400
+        while status_code != 200:  
+            response = requests.request(url=api_url, method='POST', headers=self.cred_headers,
+                                        params=params, json=payload)
+            response_data = response.json()
+            print("2",response.status_code)
+            status_code = response.status_code
         for data in response_data:
             data['Date'] = data.pop('queuedOnDate')
         self.queue.put(response_data)
@@ -177,13 +113,15 @@ class ApiReachDynamicsMixin:
                 # "FilterValue":"2021-10-03T00:00:00"
             }
         ]
-            
-        response = requests.request(url=api_url, method='POST', headers=self.cred_headers, 
-                                    params=params, json=payload)
-        response_data = response.json()
+        status_code = 400
+        while status_code != 200:   
+            response = requests.request(url=api_url, method='POST', headers=self.cred_headers, 
+                                        params=params, json=payload)
+            response_data = response.json()
+            print("3",response.status_code)
+            status_code = response.status_code
         for data in response_data:
             data['Date'] = data.pop('statDate')
-            data['dispclick'] = data.pop('clicks')
         self.queue.put(response_data)
     
     @staticmethod
@@ -207,9 +145,15 @@ class ApiReachDynamicsMixin:
 
         data = self.runInParallel(self.get_email_sent, 
                                   self.get_direct_mail_sent, 
-                                  self.get_social_summary,
-                                  self.get_total_leads)
+                                  self.get_social_summary)
         return data
+    
+    @staticmethod
+    def fix_my_stuff(x):
+        data = list(set(x.tolist()))
+        for d in data:
+            if isinstance(d, str):
+                return d
 
     @property
     def get_final_summary_data(self):
@@ -217,47 +161,18 @@ class ApiReachDynamicsMixin:
         final_data = list(itertools.chain(*response))
         df = pd.DataFrame(final_data)
         df.fillna(0, inplace=True)
-        aggregation_functions = {'Date':'first',
-                                'quantitySent': 'sum',
-                                'cost': 'sum','delivered': 'sum',
-                                'impressions': 'sum','opens': 'sum',
-                                'clicks': 'sum','bounced': 'sum',
-                                'unsubs': 'sum','ctr':'sum','attempted':'sum',
-                                'openRate':'sum','dispclick':'sum','quantityDelivered':'sum'}
-
-        df_new = df.groupby(['Date','accountId'], as_index=False).aggregate(aggregation_functions)
-        account_id_values = df_new['accountId'].items()
-        account_id_list = []
-        for _, acc_id in account_id_values:
-            account_id_list.append(acc_id)
-
-        company_details = self.company_details
-        companyName = []
-        for aId in account_id_list:
-            data = next(
-            (d for d in company_details \
-                if d.get('accountId') == aId), None)
-            companyName.append(data.get('clientName'))
-        df_new['Company Name'] = companyName       
+        aggregation_functions = {'Date':'first','companyName':lambda x: self.fix_my_stuff(x),'accountId': 'first','quantitySent': 'sum','cost': 'sum','delivered': 'sum','impressions': 'sum','opens': 'sum','clicks': 'sum','bounced': 'sum','unsubs': 'sum'}
+        df_new = df.groupby(['Date'], as_index=False).aggregate(aggregation_functions)
         df_new['Date'] = pd.to_datetime(df_new['Date'])
+        df_new['Total Leads'] = df_new['quantitySent']
         df_new['Date']  = df_new['Date'].dt.strftime('%Y-%m-%d').replace("'", "")
-
         df_new.rename(columns={
             'quantitySent':'Direct Mail Sent',
             'cost':'Direct Mail Cost',
             'delivered':'Emails delivered',
-            'impressions':'Social impressions',
-            'opens':'Email Opened',
-            'clicks':'Email Clicked',
-            'ctr':'Email Ctr',
-            'attempted':'Email Attempted',
-            'openRate':'Email Open Rate',
-            'dispclick':'Display Clicks',
-            'quantityDelivered':'Total Leads'
+            'impressions':'Social impressions'
         }, inplace = True)
-        columns = df_new.columns.values.tolist()
-        columns.insert(0, columns.pop(-1))
-        return df_new[columns]
+        return df_new
 
 
 api = ApiReachDynamicsMixin()
