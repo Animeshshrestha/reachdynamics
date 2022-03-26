@@ -70,9 +70,14 @@ class ApiReachDynamicsMixin:
         api_url = self.url+'attribution/senddetails'
         for client in self.get_client_details:
             params = {'accountId':client.get('accountId')}
-            response = requests.request(url=api_url, method='GET', headers=self.cred_headers, 
-                                        params=params)
-            for data in response.json():
+            status_code = 400
+            while status_code != 200:
+                response = requests.request(url=api_url, method='GET', headers=self.cred_headers, 
+                                            params=params)
+                response_data = response.json()
+                print("Account Details",response.status_code)
+                status_code = response.status_code
+            for data in response_data:
                 final_data.append({
                     'fname':data.get('firstName',None),
                     'lname':data.get('lastName',None),
