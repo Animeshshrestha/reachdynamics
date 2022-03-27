@@ -76,7 +76,7 @@ class ApiReachDynamicsMixin:
                                             params=params)
                 response_data = response.json()
                 print("Account Details",response.status_code)
-                print)"Response was", response_data)
+                print("Response was", response_data)
                 status_code = response.status_code
             for data in response_data:
                 final_data.append({
