@@ -78,16 +78,19 @@ class ApiReachDynamicsMixin:
                 print("Account Details",response.status_code)
                 print("Response was", response_data)
                 status_code = response.status_code
-            for data in response_data:
-                final_data.append({
-                    'fname':data.get('firstName',None),
-                    'lname':data.get('lastName',None),
-                    'email':data.get('audienceMemberAttributes').get('Email'),
-                    'total_visits':len(data.get('audienceMemberAttributes').get('PageVisits')),
-                    'clientName':client.get('clientName'),
-                    'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn'),
-                    'phoneNumber':data.get('audienceMemberAttributes').get('PhoneNumber', None)
-                })
+            if response_data:
+                for data in response_data:
+                    final_data.append({
+                        'fname':data.get('firstName',None),
+                        'lname':data.get('lastName',None),
+                        'email':data.get('audienceMemberAttributes').get('Email'),
+                        'total_visits':len(data.get('audienceMemberAttributes').get('PageVisits')),
+                        'clientName':client.get('clientName'),
+                        'initialDate':data.get('audienceMemberAttributes').get('InitialPageViewedOn'),
+                        'phoneNumber':data.get('audienceMemberAttributes').get('PhoneNumber', None)
+                    })
+            else:
+                continue
         new_data = pd.DataFrame(final_data)
         new_data['initialDate'] =  pd.to_datetime(new_data['initialDate']).dt.strftime('%Y-%m-%d')
         return new_data
